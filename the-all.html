@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>剪刀石头布 · 多实例实验平台</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial; }
+        body { background: #f5f5f5; transition: background 0.3s; padding: 20px; }
+        
+        /* 模式选择界面 */
+        #modeSelect { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #fff; display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; gap: 30px;
+            z-index: 1000; transition: opacity 0.5s;
+        }
+        #modeSelect.hidden { opacity: 0; pointer-events: none; }
+        .select-title { font-size: 28px; color: #333; text-align: center; }
+        .mode-card-group { display: flex; gap: 40px; flex-wrap: wrap; justify-content: center; }
+        .mode-card { 
+            width: 320px; padding: 20px; background: #f8f8f8; 
+            border-radius: 8px; border: 2px solid #eee; cursor: pointer;
+            transition: all 0.3s;
+        }
+        .mode-card:hover { transform: translateY(-5px); border-color: #4CAF50; }
+        .mode-card h3 { color: #4CAF50; margin-bottom: 12px; font-size: 20px; }
+        .mode-desc { color: #666; line-height: 1.6; margin-bottom: 15px; font-size: 14px; }
+        .mode-rule { color: #888; font-size: 13px; list-style-position: inside; margin-left: 8px; }
+        .start-btn { 
+            padding: 12px 30px; background: #4CAF50; color: white; 
+            border: none; border-radius: 6px; font-size: 16px; cursor: pointer;
+            transition: background 0.3s;
+        }
+        .start-btn:hover { background: #45a049; }
+
+        /* 全局参数控制区 */
+        #globalCtrl {
+            max-width: 1400px; margin: 0 auto 20px; padding: 15px;
+            background: #fff; border-radius: 8px; border: 1px solid #ddd;
+            display: flex; flex-wrap: wrap; gap: 15px; align-items: center;
+        }
+        #globalCtrl h3 { flex: 0 0 100%; color: #333; margin-bottom: 5px; }
+        .unit-param-group { 
+            flex: 1; min-width: 300px; padding: 8px; 
+            background: #f8f8f8; border-radius: 6px;
+        }
+        .unit-title { font-size: 15px; color: #333; margin-bottom: 8px; font-weight: bold; }
+        .param-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .param-row label { width: 60px; text-align: right; font-size: 14px; }
+        .param-row input[type="number"] { width: 70px; padding: 4px; font-size: 14px; border: 1px solid #ddd; }
+        .param-row input[type="range"] { flex: 1; min-width: 100px; }
+        .global-btn {
+            padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;
+            font-size: 14px; transition: background 0.3s; margin-left: 10px;
+        }
+        #addInstance { background: #4CAF50; color: white; }
+        #darkMode { background: #666; color: white; }
+
+        /* 实例容器 */
+        #instanceContainer {
+            max-width: 1400px; margin: 0 auto; display: flex;
+            flex-direction: column; gap: 25px;
+        }
+
+        /* 单个实验实例 */
+        .instance {
+            background: #fff; border-radius: 8px; border: 1px solid #ddd;
+            padding: 15px; transition: all 0.3s;
+        }
+        .instance-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee;
+        }
+        .instance-title { font-size: 17px; color: #333; font-weight: bold; }
+        .instance-btn-group { display: flex; gap: 8px; }
+        .instance-btn {
+            padding: 5px 12px; border: none; border-radius: 4px; cursor: pointer;
+            font-size: 13px; transition: background 0.3s;
+        }
+        .track-btn { background: #2196F3; color: white; }
+        .refresh-chart { background: #FF9800; color: white; }
+        .export-data { background: #9C27B0; color: white; }
+        .del-instance { background: #f44336; color: white; }
+
+        /* 实例内容 */
+        .instance-content { display: flex; gap: 20px; align-items: flex-start; }
+        .canvas-box { position: relative; }
+        .game-canvas { border: 2px solid #333; background: #fff; display: block; }
+        .track-tip { 
+            position: absolute; top: 10px; left: 10px; font-size: 14px; 
+            color: #2196F3; font-weight: bold; display: none;
+        }
+        .track-tip.show { display: block; }
+        .mode-tip { 
+            position: absolute; top: 40px; left: 10px; font-size: 14px; 
+            color: #333; font-weight: bold;
+        }
+
+        /* 右侧信息区 */
+        .info-box { display: flex; flex-direction: column; gap: 15px; width: 320px; }
+        .count-box {
+            padding: 10px; background: #f8f8f8; border-radius: 6px;
+            border: 1px solid #eee;
+        }
+        .count-box h4 { font-size: 15px; color: #333; margin-bottom: 8px; }
+        .count-item { display: flex; justify-content: space-between; margin: 5px 0; font-size: 14px; }
+        .rock { color: #888; }
+        .scissors { color: #f44; }
+        .paper { color: #48f; }
+        .chart-box {
+            width: 100%; height: 220px; padding: 8px;
+            background: #fff; border: 1px solid #ddd; border-radius: 6px;
+            position: relative;
+        }
+        .chart-container {
+            width: 100%;
+            height: 100%;
+        }
+        .chart-error {
+            display: none; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); color: #f44; font-size: 12px;
+            text-align: center; padding: 5px;
+        }
+
+        /* 暗黑模式 */
+        body.dark { background: #1a1a1a; }
+        body.dark #modeSelect { background: #2d2d2d; }
+        body.dark .select-title { color: #eee; }
+        body.dark .mode-card { background: #3d3d3d; border-color: #555; }
+        body.dark .mode-card h3 { color: #81c784; }
+        body.dark .mode-card .mode-desc, body.dark .mode-card .mode-rule { color: #ccc; }
+        body.dark #globalCtrl, body.dark .instance { background: #2d2d2d; border-color: #444; }
+        body.dark #globalCtrl h3, body.dark .instance-title, body.dark .count-box h4, body.dark .unit-title { color: #eee; }
+        body.dark .param-row label, body.dark .param-row input[type="number"], body.dark .count-item { color: #eee; }
+        body.dark .param-row input[type="number"], body.dark .unit-param-group, body.dark .count-box { background: #2d2d2d; border-color: #444; }
+        body.dark .game-canvas { background: #2d2d2d; border-color: #666; }
+        body.dark .mode-tip { color: #eee; }
+        body.dark .track-tip { color: #81d4fa; }
+        body.dark .chart-box { background: #2d2d2d; border-color: #444; }
+    </style>
+</head>
+<body>
+    <!-- 模式选择界面 -->
+    <div id="modeSelect">
+        <h1 class="select-title">剪刀石头布 · 多实例实验平台</h1>
+        <div class="mode-card-group">
+            <div class="mode-card">
+                <h3>淘汰模式（总数减少）</h3>
+                <p class="mode-desc">克制方碰撞被克制方时，被克制方直接淘汰，总数量随实验推进减少。</p>
+                <ul>
+                    <li class="mode-rule">石头碰剪刀 → 剪刀淘汰</li>
+                    <li class="mode-rule">剪刀碰布 → 布淘汰</li>
+                    <li class="mode-rule">布碰石头 → 石头淘汰</li>
+                </ul>
+                <button class="start-btn" data-mode="eliminate">选择淘汰模式</button>
+            </div>
+            <div class="mode-card">
+                <h3>等化模式（总数固定）</h3>
+                <p class="mode-desc">克制方碰撞被克制方时，被克制方转化为克制方，总数量始终保持初始值。</p>
+                <ul>
+                    <li class="mode-rule">石头碰剪刀 → 剪刀变石头</li>
+                    <li class="mode-rule">剪刀碰布 → 布变剪刀</li>
+                    <li class="mode-rule">布碰石头 → 石头变布</li>
+                </ul>
+                <button class="start-btn" data-mode="equalize">选择等化模式</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 实验主界面 -->
+    <div id="experimentMain" style="display: none;">
+        <div id="globalCtrl">
+            <h3>全局实验参数（所有实例同步生效）</h3>
+            
+            <div class="unit-param-group">
+                <div class="unit-title">石头参数</div>
+                <div class="param-row">
+                    <label>数量：</label>
+                    <input type="number" id="rockNum" min="0" value="10" onchange="syncParam('count', 'rock')">
+                    <input type="range" id="rockNumRange" min="0" value="10" oninput="syncParamInput('count', 'rock')">
+                </div>
+                <div class="param-row">
+                    <label>速度：</label>
+                    <input type="number" id="rockSpeed" min="0" value="50" onchange="syncParam('speed', 'rock')">
+                    <input type="range" id="rockSpeedRange" min="0" value="50" oninput="syncParamInput('speed', 'rock')">
+                </div>
+                <div class="param-row">
+                    <label>大小：</label>
+                    <input type="number" id="rockSize" min="1" value="18" onchange="syncParam('size', 'rock')">
+                    <input type="range" id="rockSizeRange" min="1" value="18" oninput="syncParamInput('size', 'rock')">
+                </div>
+            </div>
+
+            <div class="unit-param-group">
+                <div class="unit-title">剪刀参数</div>
+                <div class="param-row">
+                    <label>数量：</label>
+                    <input type="number" id="scissorsNum" min="0" value="10" onchange="syncParam('count', 'scissors')">
+                    <input type="range" id="scissorsNumRange" min="0" value="10" oninput="syncParamInput('count', 'scissors')">
+                </div>
+                <div class="param-row">
+                    <label>速度：</label>
+                    <input type="number" id="scissorsSpeed" min="0" value="50" onchange="syncParam('speed', 'scissors')">
+                    <input type="range" id="scissorsSpeedRange" min="0" value="50" oninput="syncParamInput('speed', 'scissors')">
+                </div>
+                <div class="param-row">
+                    <label>大小：</label>
+                    <input type="number" id="scissorsSize" min="1" value="18" onchange="syncParam('size', 'scissors')">
+                    <input type="range" id="scissorsSizeRange" min="1" value="18" oninput="syncParamInput('size', 'scissors')">
+                </div>
+            </div>
+
+            <div class="unit-param-group">
+                <div class="unit-title">布参数</div>
+                <div class="param-row">
+                    <label>数量：</label>
+                    <input type="number" id="paperNum" min="0" value="10" onchange="syncParam('count', 'paper')">
+                    <input type="range" id="paperNumRange" min="0" value="10" oninput="syncParamInput('count', 'paper')">
+                </div>
+                <div class="param-row">
+                    <label>速度：</label>
+                    <input type="number" id="paperSpeed" min="0" value="50" onchange="syncParam('speed', 'paper')">
+                    <input type="range" id="paperSpeedRange" min="0" value="50" oninput="syncParamInput('speed', 'paper')">
+                </div>
+                <div class="param-row">
+                    <label>大小：</label>
+                    <input type="number" id="paperSize" min="1" value="18" onchange="syncParam('size', 'paper')">
+                    <input type="range" id="paperSizeRange" min="1" value="18" oninput="syncParamInput('size', 'paper')">
+                </div>
+            </div>
+
+            <button class="global-btn" id="addInstance" onclick="addNewInstance()">+ 新增实验实例</button>
+            <button class="global-btn" id="darkMode" onclick="toggleDarkMode()">切换暗黑模式</button>
+        </div>
+
+        <div id="instanceContainer"></div>
+    </div>
+
+    <script>
+        // 全局状态管理：恢复10秒显示配置（仅用于图表）
+        const app = {
+            mode: null,
+            globalParam: {
+                rock: { count: 10, speed: 50, size: 18 },
+                scissors: { count: 10, speed: 50, size: 18 },
+                paper: { count: 10, speed: 50, size: 18 },
+                darkMode: false
+            },
+            instances: [],
+            instanceId: 0,
+            echartsReady: typeof echarts !== 'undefined',
+            chartTimeSpan: 10, // 恢复10秒配置（仅控制图表显示范围）
+            chartUpdateInterval: 1000 // 1秒更新1次
+        };
+
+        // 图标资源（本地图片+彩色小球 fallback）
+        const icons = {
+            rock: { 
+                img: new Image(), 
+                src: 'images/rock.png',
+                color: '#888'
+            },
+            scissors: { 
+                img: new Image(), 
+                src: 'images/scissors.png',
+                color: '#f44'
+            },
+            paper: { 
+                img: new Image(), 
+                src: 'images/paper.png',
+                color: '#48f'
+            }
+        };
+        Object.values(icons).forEach(icon => icon.img.src = icon.src);
+
+        // 备用ECharts加载
+        if (!app.echartsReady) {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.staticfile.org/echarts/5.4.3/echarts.min.js';
+            script.onload = () => {
+                app.echartsReady = true;
+                app.instances.forEach(inst => inst.initChart());
+            };
+            script.onerror = () => {
+                document.querySelectorAll('.chart-error').forEach(el => el.style.display = 'block');
+            };
+            document.head.appendChild(script);
+        }
+
+        // 模式选择初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.start-btn[data-mode]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    app.mode = btn.getAttribute('data-mode');
+                    document.getElementById('modeSelect').classList.add('hidden');
+                    document.getElementById('experimentMain').style.display = 'block';
+                    addNewInstance();
+                });
+            });
+        });
+
+        // 实验实例类
+        class ExpInstance {
+            constructor(id) {
+                this.id = id;
+                this.units = [];
+                this.tracking = false;
+                this.chart = null;
+                // 关键修改：用两个变量分离存储和显示
+                this.fullData = { rock: [], scissors: [], paper: [] }; // 存储所有时间数据（供导出）
+                this.chartData = { rock: [], scissors: [], paper: [] }; // 只存最近10秒数据（供图表显示）
+                this.animId = null;
+                this.chartTimer = null;
+
+                this.createDOM();
+                this.init();
+            }
+
+            createDOM() {
+                const container = document.getElementById('instanceContainer');
+                const instWrap = document.createElement('div');
+                instWrap.className = 'instance';
+                instWrap.id = `inst-${this.id}`;
+
+                instWrap.innerHTML = `
+                    <div class="instance-header">
+                        <div class="instance-title">实验实例 #${this.id}</div>
+                        <div class="instance-btn-group">
+                            <button class="instance-btn track-btn" onclick="toggleTrack(${this.id})">开启追踪</button>
+                            <button class="instance-btn refresh-chart" onclick="refreshChart(${this.id})">刷新图表</button>
+                            <button class="instance-btn export-data" onclick="exportData(${this.id})">导出数据</button>
+                            <button class="instance-btn del-instance" onclick="deleteInstance(${this.id})">删除</button>
+                        </div>
+                    </div>
+                    <div class="instance-content">
+                        <div class="canvas-box">
+                            <canvas class="game-canvas" id="canvas-${this.id}" width="600" height="400"></canvas>
+                            <div class="track-tip" id="trackTip-${this.id}">已开启主动追踪：朝可克制目标进攻</div>
+                            <div class="mode-tip" id="modeTip-${this.id}">
+                                ${app.mode === 'eliminate' ? '淘汰模式：克制方淘汰被克制方' : '等化模式：克制方转化被克制方'}
+                            </div>
+                        </div>
+                        <div class="info-box">
+                            <div class="count-box">
+                                <h4>实时数量</h4>
+                                <div class="count-item">
+                                    <span class="count-label rock">石头：</span>
+                                    <span id="rockCount-${this.id}">10</span> 个
+                                </div>
+                                <div class="count-item">
+                                    <span class="count-label scissors">剪刀：</span>
+                                    <span id="scissorsCount-${this.id}">10</span> 个
+                                </div>
+                                <div class="count-item">
+                                    <span class="count-label paper">布：</span>
+                                    <span id="paperCount-${this.id}">10</span> 个
+                                </div>
+                                <div class="count-item">
+                                    <span class="count-label" style="color: #ff6700;">
+                                        ${app.mode === 'eliminate' ? '当前总数' : '固定总数'}：
+                                    </span>
+                                    <span id="totalCount-${this.id}">30</span> 个
+                                </div>
+                            </div>
+                            <div class="chart-box">
+                                <div class="chart-container" id="chart-${this.id}"></div>
+                                <div class="chart-error" id="chartError-${this.id}">图表加载失败，点击刷新</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(instWrap);
+
+                this.dom = {
+                    wrap: instWrap,
+                    canvas: document.getElementById(`canvas-${this.id}`),
+                    ctx: document.getElementById(`canvas-${this.id}`).getContext('2d'),
+                    trackTip: document.getElementById(`trackTip-${this.id}`),
+                    countEls: {
+                        rock: document.getElementById(`rockCount-${this.id}`),
+                        scissors: document.getElementById(`scissorsCount-${this.id}`),
+                        paper: document.getElementById(`paperCount-${this.id}`),
+                        total: document.getElementById(`totalCount-${this.id}`)
+                    },
+                    chartEl: document.getElementById(`chart-${this.id}`),
+                    chartError: document.getElementById(`chartError-${this.id}`)
+                };
+            }
+
+            init() {
+                this.total = app.globalParam.rock.count + 
+                             app.globalParam.scissors.count + 
+                             app.globalParam.paper.count;
+                this.createUnits();
+                this.initChart();
+                this.startAnimation();
+                this.startChartUpdate();
+                this.syncDarkMode();
+            }
+
+            createUnits() {
+                this.units = [];
+                const param = app.globalParam;
+                const canvasW = this.dom.canvas.width;
+                const canvasH = this.dom.canvas.height;
+
+                for (let i = 0; i < param.rock.count; i++) {
+                    this.units.push(this.createSingleUnit('rock', canvasW, canvasH));
+                }
+                for (let i = 0; i < param.scissors.count; i++) {
+                    this.units.push(this.createSingleUnit('scissors', canvasW, canvasH));
+                }
+                for (let i = 0; i < param.paper.count; i++) {
+                    this.units.push(this.createSingleUnit('paper', canvasW, canvasH));
+                }
+
+                this.updateCount();
+            }
+
+            createSingleUnit(type, canvasW, canvasH) {
+                const param = app.globalParam[type];
+                return {
+                    type,
+                    x: Math.random() * (canvasW - param.size) + param.size/2,
+                    y: Math.random() * (canvasH - param.size) + param.size/2,
+                    radius: param.size / 2,
+                    speed: param.speed,
+                    vx: param.speed > 0 ? (Math.random() - 0.5) * 2 : 0,
+                    vy: param.speed > 0 ? (Math.random() - 0.5) * 2 : 0
+                };
+            }
+
+            findTarget(unit) {
+                if (!this.tracking || unit.speed === 0) return null;
+
+                const targetMap = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
+                const targetType = targetMap[unit.type];
+                let closestTarget = null;
+                let minDistance = Infinity;
+
+                this.units.forEach(otherUnit => {
+                    if (otherUnit.type === targetType) {
+                        const distance = Math.hypot(unit.x - otherUnit.x, unit.y - otherUnit.y);
+                        if (distance < minDistance && distance < 300) {
+                            minDistance = distance;
+                            closestTarget = otherUnit;
+                        }
+                    }
+                });
+
+                return closestTarget;
+            }
+
+            moveUnits() {
+                const canvasW = this.dom.canvas.width;
+                const canvasH = this.dom.canvas.height;
+
+                this.units.forEach(unit => {
+                    if (unit.speed === 0) {
+                        unit.vx = 0;
+                        unit.vy = 0;
+                        return;
+                    }
+
+                    const target = this.findTarget(unit);
+                    if (target) {
+                        const angle = Math.atan2(target.y - unit.y, target.x - unit.x);
+                        unit.vx += Math.cos(angle) * 0.2;
+                        unit.vy += Math.sin(angle) * 0.2;
+                    }
+
+                    const maxSpeed = unit.speed * 0.8;
+                    const currentSpeed = Math.hypot(unit.vx, unit.vy);
+                    if (currentSpeed > maxSpeed) {
+                        const ratio = maxSpeed / currentSpeed;
+                        unit.vx *= ratio;
+                        unit.vy *= ratio;
+                    }
+
+                    if (unit.x - unit.radius < 0) {
+                        unit.x = unit.radius;
+                        unit.vx *= -1.2;
+                    }
+                    if (unit.x + unit.radius > canvasW) {
+                        unit.x = canvasW - unit.radius;
+                        unit.vx *= -1.2;
+                    }
+                    if (unit.y - unit.radius < 0) {
+                        unit.y = unit.radius;
+                        unit.vy *= -1.2;
+                    }
+                    if (unit.y + unit.radius > canvasH) {
+                        unit.y = canvasH - unit.radius;
+                        unit.vy *= -1.2;
+                    }
+
+                    unit.x += unit.vx;
+                    unit.y += unit.vy;
+                });
+            }
+
+            checkCollisions() {
+                const units = this.units;
+                for (let i = 0; i < units.length; i++) {
+                    const unitA = units[i];
+                    for (let j = i + 1; j < units.length; j++) {
+                        const unitB = units[j];
+                        const distance = Math.hypot(unitA.x - unitB.x, unitA.y - unitB.y);
+
+                        if (distance < unitA.radius + unitB.radius) {
+                            if (unitA.type === unitB.type) {
+                                const angle = Math.atan2(unitA.y - unitB.y, unitA.x - unitB.x);
+                                unitA.vx = Math.cos(angle) * unitA.speed * 0.4;
+                                unitB.vx = -Math.cos(angle) * unitB.speed * 0.4;
+                                unitA.vy = Math.sin(angle) * unitA.speed * 0.4;
+                                unitB.vy = -Math.sin(angle) * unitB.speed * 0.4;
+                            } else {
+                                const aBeatsB = (unitA.type === 'rock' && unitB.type === 'scissors') ||
+                                                (unitA.type === 'scissors' && unitB.type === 'paper') ||
+                                                (unitA.type === 'paper' && unitB.type === 'rock');
+
+                                if (app.mode === 'eliminate') {
+                                    if (aBeatsB) {
+                                        units.splice(j, 1);
+                                        j--;
+                                    } else {
+                                        units.splice(i, 1);
+                                        i--;
+                                        break;
+                                    }
+                                } else {
+                                    if (aBeatsB) {
+                                        unitB.type = unitA.type;
+                                        unitB.speed = app.globalParam[unitA.type].speed;
+                                        unitB.radius = app.globalParam[unitA.type].size / 2;
+                                    } else {
+                                        unitA.type = unitB.type;
+                                        unitA.speed = app.globalParam[unitB.type].speed;
+                                        unitA.radius = app.globalParam[unitB.type].size / 2;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (app.mode === 'equalize') {
+                    this.fixTotalCount();
+                }
+
+                this.updateCount();
+            }
+
+            fixTotalCount() {
+                const currentTotal = this.units.length;
+                const diff = this.total - currentTotal;
+
+                if (diff > 0) {
+                    const countMap = this.getCountMap();
+                    const minType = Object.keys(countMap).sort((a, b) => countMap[a] - countMap[b])[0];
+                    for (let i = 0; i < diff; i++) {
+                        this.units.push(this.createSingleUnit(minType, this.dom.canvas.width, this.dom.canvas.height));
+                    }
+                } else if (diff < 0) {
+                    const countMap = this.getCountMap();
+                    const maxType = Object.keys(countMap).sort((a, b) => countMap[b] - countMap[a])[0];
+                    let removed = 0;
+                    this.units = this.units.filter(unit => {
+                        if (unit.type === maxType && removed < -diff) {
+                            removed++;
+                            return false;
+                        }
+                        return true;
+                    });
+                }
+            }
+
+            getCountMap() {
+                return {
+                    rock: this.units.filter(u => u.type === 'rock').length,
+                    scissors: this.units.filter(u => u.type === 'scissors').length,
+                    paper: this.units.filter(u => u.type === 'paper').length
+                };
+            }
+
+            updateCount() {
+                const countMap = this.getCountMap();
+                this.dom.countEls.rock.textContent = countMap.rock;
+                this.dom.countEls.scissors.textContent = countMap.scissors;
+                this.dom.countEls.paper.textContent = countMap.paper;
+                this.dom.countEls.total.textContent = this.units.length;
+            }
+
+            drawUnits() {
+                const ctx = this.dom.ctx;
+                ctx.clearRect(0, 0, this.dom.canvas.width, this.dom.canvas.height);
+
+                this.units.forEach(unit => {
+                    ctx.save();
+                    const icon = icons[unit.type];
+
+                    ctx.shadowColor = app.globalParam.darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)';
+                    ctx.shadowBlur = 3;
+                    ctx.shadowOffsetX = 2;
+                    ctx.shadowOffsetY = 2;
+
+                    if (icon.img.complete && icon.img.naturalWidth > 0) {
+                        ctx.drawImage(
+                            icon.img,
+                            unit.x - unit.radius,
+                            unit.y - unit.radius,
+                            unit.radius * 2,
+                            unit.radius * 2
+                        );
+                    } else {
+                        ctx.fillStyle = icon.color;
+                        ctx.beginPath();
+                        ctx.arc(unit.x, unit.y, unit.radius, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    ctx.restore();
+                });
+            }
+
+            // 初始化图表：标题恢复为“最近10秒”
+            initChart() {
+                if (!app.echartsReady) {
+                    this.dom.chartError.style.display = 'block';
+                    return;
+                }
+
+                try {
+                    this.chart = echarts.init(this.dom.chartEl);
+                    this.dom.chartError.style.display = 'none';
+
+                    const isDark = app.globalParam.darkMode;
+                    const chartOption = {
+                        title: { 
+                            text: `数量时间变化（最近10秒）`, // 恢复10秒显示说明
+                            textStyle: { fontSize: 13, color: isDark ? '#eee' : '#333' },
+                            left: 'center', top: 5
+                        },
+                        backgroundColor: isDark ? '#2d2d2d' : 'transparent',
+                        tooltip: { trigger: 'axis', formatter: '{b}<br/>{a}: {c}个' },
+                        legend: { 
+                            data: ['石头', '剪刀', '布'], 
+                            fontSize: 11, bottom: 0,
+                            textStyle: { color: isDark ? '#eee' : '#333' }
+                        },
+                        grid: { left: '5%', right: '5%', top: '20%', bottom: '20%' },
+                        xAxis: { 
+                            type: 'time', 
+                            splitLine: { show: false },
+                            axisLine: { lineStyle: { color: isDark ? '#aaa' : '#666' } },
+                            axisLabel: { textStyle: { color: isDark ? '#eee' : '#333', fontSize: 10 } },
+                            min: 'dataMin',
+                            max: 'dataMax'
+                        },
+                        yAxis: { 
+                            type: 'value', min: 0,
+                            axisLine: { lineStyle: { color: isDark ? '#aaa' : '#666' } },
+                            axisLabel: { textStyle: { color: isDark ? '#eee' : '#333', fontSize: 10 } },
+                            splitLine: { lineStyle: { color: isDark ? '#444' : '#eee' } }
+                        },
+                        series: [
+                            { name: '石头', type: 'line', data: this.chartData.rock, smooth: true, color: '#888', lineStyle: { width: 2 } },
+                            { name: '剪刀', type: 'line', data: this.chartData.scissors, smooth: true, color: '#f44', lineStyle: { width: 2 } },
+                            { name: '布', type: 'line', data: this.chartData.paper, smooth: true, color: '#48f', lineStyle: { width: 2 } }
+                        ]
+                    };
+                    this.chart.setOption(chartOption);
+
+                    window.addEventListener('resize', () => this.chart?.resize());
+                } catch (error) {
+                    console.error(`实例${this.id}图表初始化失败：`, error);
+                    this.dom.chartError.style.display = 'block';
+                }
+            }
+
+            // 更新图表数据：核心分离逻辑
+            updateChartData() {
+                if (!this.chart) return;
+
+                const now = new Date().getTime();
+                const countMap = this.getCountMap();
+                const tenSecondsAgo = now - app.chartTimeSpan * 1000; // 10秒前的时间戳
+
+                // 1. 保存完整数据（供导出）
+                this.fullData.rock.push([now, countMap.rock]);
+                this.fullData.scissors.push([now, countMap.scissors]);
+                this.fullData.paper.push([now, countMap.paper]);
+
+                // 2. 过滤出最近10秒的数据（供图表显示）
+                this.chartData.rock = this.fullData.rock.filter(item => item[0] >= tenSecondsAgo);
+                this.chartData.scissors = this.fullData.scissors.filter(item => item[0] >= tenSecondsAgo);
+                this.chartData.paper = this.fullData.paper.filter(item => item[0] >= tenSecondsAgo);
+
+                // 3. 更新图表显示（仅显示10秒数据）
+                this.chart.setOption({
+                    xAxis: { min: 'dataMin', max: 'dataMax' },
+                    series: [
+                        { data: this.chartData.rock },
+                        { data: this.chartData.scissors },
+                        { data: this.chartData.paper }
+                    ]
+                });
+            }
+
+            toggleTracking() {
+                this.tracking = !this.tracking;
+                this.dom.trackTip.classList.toggle('show', this.tracking);
+                const trackBtn = this.dom.wrap.querySelector('.track-btn');
+                trackBtn.textContent = this.tracking ? '关闭追踪' : '开启追踪';
+            }
+
+            refreshChart() {
+                if (this.chart) this.chart.dispose();
+                this.initChart();
+                this.updateChartData();
+            }
+
+            // 导出数据：使用完整数据集fullData
+            exportData() {
+                const countMap = this.getCountMap();
+                const modeName = app.mode === 'eliminate' ? '淘汰模式' : '等化模式';
+                const exportTime = new Date().toLocaleString().replace(/:/g, '-');
+
+                // 带BOM头，确保Excel识别UTF-8
+                let csvContent = `\uFEFF`;
+                csvContent += `剪刀石头布实验数据\n`;
+                csvContent += `实例ID: ${this.id}\n`;
+                csvContent += `实验模式: ${modeName}\n`;
+                csvContent += `导出时间: ${exportTime}\n`;
+                csvContent += `当前参数: 石头(${countMap.rock}个/${app.globalParam.rock.speed}速/${app.globalParam.rock.size}px)、`;
+                csvContent += `剪刀(${countMap.scissors}个/${app.globalParam.scissors.speed}速/${app.globalParam.scissors.size}px)、`;
+                csvContent += `布(${countMap.paper}个/${app.globalParam.paper.speed}速/${app.globalParam.paper.size}px)\n\n`;
+                csvContent += `时间,石头数量,剪刀数量,布数量\n`;
+
+                // 关键修改：使用fullData导出所有时间的数据
+                for (let i = 0; i < this.fullData.rock.length; i++) {
+                    const timeStr = new Date(this.fullData.rock[i][0]).toLocaleTimeString();
+                    const rockCount = this.fullData.rock[i][1];
+                    const scissorsCount = this.fullData.scissors[i][1];
+                    const paperCount = this.fullData.paper[i][1];
+                    csvContent += `${timeStr},${rockCount},${scissorsCount},${paperCount}\n`;
+                }
+
+                const blob = new Blob([csvContent], { type: 'application/vnd.ms-excel;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const downloadLink = document.createElement('a');
+                downloadLink.href = url;
+                downloadLink.download = `RPS_实例${this.id}_${modeName}_${exportTime}.xls`;
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+                URL.revokeObjectURL(url);
+            }
+
+            syncGlobalParam() {
+                const param = app.globalParam;
+
+                this.units.forEach(unit => {
+                    unit.speed = param[unit.type].speed;
+                    unit.radius = param[unit.type].size / 2;
+                    if (unit.speed === 0) {
+                        unit.vx = 0;
+                        unit.vy = 0;
+                    }
+                });
+
+                if (app.mode === 'eliminate') {
+                    const countMap = this.getCountMap();
+                    this.adjustUnitCount('rock', param.rock.count - countMap.rock);
+                    this.adjustUnitCount('scissors', param.scissors.count - countMap.scissors);
+                    this.adjustUnitCount('paper', param.paper.count - countMap.paper);
+                } else {
+                    this.total = param.rock.count + param.scissors.count + param.paper.count;
+                    this.fixTotalCount();
+                }
+
+                this.updateCount();
+                if (this.chart) {
+                    this.chart.setOption({ title: { text: `数量时间变化（最近10秒）` } });
+                }
+            }
+
+            adjustUnitCount(type, diff) {
+                if (diff > 0) {
+                    for (let i = 0; i < diff; i++) {
+                        this.units.push(this.createSingleUnit(type, this.dom.canvas.width, this.dom.canvas.height));
+                    }
+                } else if (diff < 0) {
+                    let removed = 0;
+                    this.units = this.units.filter(unit => {
+                        if (unit.type === type && removed < -diff) {
+                            removed++;
+                            return false;
+                        }
+                        return true;
+                    });
+                }
+            }
+
+            syncDarkMode() {
+                const isDark = app.globalParam.darkMode;
+                this.dom.canvas.style.background = isDark ? '#2d2d2d' : '#fff';
+                this.dom.canvas.style.borderColor = isDark ? '#666' : '#333';
+                this.dom.wrap.style.background = isDark ? '#2d2d2d' : '#fff';
+                this.dom.wrap.style.borderColor = isDark ? '#444' : '#ddd';
+                if (this.chart) {
+                    this.chart.setOption({
+                        title: { textStyle: { color: isDark ? '#eee' : '#333' } },
+                        backgroundColor: isDark ? '#2d2d2d' : 'transparent',
+                        legend: { textStyle: { color: isDark ? '#eee' : '#333' } },
+                        xAxis: { 
+                            axisLine: { lineStyle: { color: isDark ? '#aaa' : '#666' } },
+                            axisLabel: { textStyle: { color: isDark ? '#eee' : '#333' } }
+                        },
+                        yAxis: { 
+                            axisLine: { lineStyle: { color: isDark ? '#aaa' : '#666' } },
+                            axisLabel: { textStyle: { color: isDark ? '#eee' : '#333' } },
+                            splitLine: { lineStyle: { color: isDark ? '#444' : '#eee' } }
+                        }
+                    });
+                }
+            }
+
+            animate() {
+                this.moveUnits();
+                this.checkCollisions();
+                this.drawUnits();
+                this.animId = requestAnimationFrame(() => this.animate());
+            }
+
+            startAnimation() {
+                if (this.animId) cancelAnimationFrame(this.animId);
+                this.animate();
+            }
+
+            startChartUpdate() {
+                if (this.chartTimer) clearInterval(this.chartTimer);
+                this.chartTimer = setInterval(() => this.updateChartData(), app.chartUpdateInterval);
+            }
+
+            destroy() {
+                if (this.animId) cancelAnimationFrame(this.animId);
+                if (this.chartTimer) clearInterval(this.chartTimer);
+                if (this.chart) this.chart.dispose();
+                this.dom.wrap.remove();
+            }
+        }
+
+        // 全局功能函数
+        function addNewInstance() {
+            const newId = ++app.instanceId;
+            const newInstance = new ExpInstance(newId);
+            app.instances.push(newInstance);
+        }
+
+        function deleteInstance(id) {
+            const instanceIndex = app.instances.findIndex(inst => inst.id === id);
+            if (instanceIndex !== -1) {
+                app.instances[instanceIndex].destroy();
+                app.instances.splice(instanceIndex, 1);
+            }
+        }
+
+        function toggleTrack(id) {
+            const instance = app.instances.find(inst => inst.id === id);
+            if (instance) instance.toggleTracking();
+        }
+
+        function refreshChart(id) {
+            const instance = app.instances.find(inst => inst.id === id);
+            if (instance) instance.refreshChart();
+        }
+
+        function exportData(id) {
+            const instance = app.instances.find(inst => inst.id === id);
+            if (instance) instance.exportData();
+        }
+
+        function syncParamInput(type, unitType) {
+            const rangeEl = document.getElementById(`${unitType}${type === 'count' ? 'NumRange' : type === 'speed' ? 'SpeedRange' : 'SizeRange'}`);
+            const numEl = document.getElementById(`${unitType}${type === 'count' ? 'Num' : type === 'speed' ? 'Speed' : 'Size'}`);
+            numEl.value = rangeEl.value;
+            syncParam(type, unitType);
+        }
+
+        function syncParam(type, unitType) {
+            const value = parseInt(document.getElementById(`${unitType}${type === 'count' ? 'Num' : type === 'speed' ? 'Speed' : 'Size'}`).value) || (type === 'size' ? 1 : 0);
+            app.globalParam[unitType][type] = value;
+            app.instances.forEach(inst => inst.syncGlobalParam());
+            document.getElementById(`${unitType}${type === 'count' ? 'NumRange' : type === 'speed' ? 'SpeedRange' : 'SizeRange'}`).value = value;
+        }
+
+        function toggleDarkMode() {
+            app.globalParam.darkMode = !app.globalParam.darkMode;
+            document.body.classList.toggle('dark', app.globalParam.darkMode);
+            app.instances.forEach(inst => inst.syncDarkMode());
+        }
+    </script>
+</body>
+</html>
